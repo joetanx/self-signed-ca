@@ -77,7 +77,7 @@ Email Address []:
 ```
 
 ## 2.0 Generate certificate for Conjur Server
-> Note: change the common name/subject alternative name of the certificate according to your environment
+> **Note**: change the common name/subject alternative name of the certificate according to your environment
 > 
 > The name must match the Conjur Server FQDN that the clients or followers will be using to communicate to the Conjur Server
 > 
@@ -101,7 +101,7 @@ openssl x509 -req -in conjur.vx.csr -CA vxLabCA.pem -CAkey vxLabCA.key -CAcreate
 ```
 
 ## 3.0 Generate certificate for Conjur Follower
-> Note: change the common name/subject alternative name of the certificate according to your environment
+> **Note**: change the common name/subject alternative name of the certificate according to your environment
 > 
 > The name must match the follower FQDN that the follower will be using to communicate to the Conjur Master
 > 
