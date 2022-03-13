@@ -109,19 +109,19 @@ openssl x509 -req -in conjur.vx.csr -CA vxLabCA.pem -CAkey vxLabCA.key -CAcreate
 > 
 > Conjur OSS does not support followers
 
-- Generate private key of the Conjur Follower certificate
+- Generate **private key** of the Conjur Follower certificate
 ```console
 openssl genrsa -out follower.conjur.svc.cluster.local.key 2048
 ```
-- Create certificate signing request for the Conjur Follower certificate
+- Create **certificate signing request** for the Conjur Follower certificate
 ```console
 openssl req -new -key follower.conjur.svc.cluster.local.key -subj "/CN=follower.conjur.svc.cluster.local" -out follower.conjur.svc.cluster.local.csr
 ```
-- Create OpenSSL configuration file to add subject alternative name
+- Create OpenSSL **configuration file** to add subject alternative name
 ```console
 echo "subjectAltName=DNS:follower.conjur.demo,DNS:follower.conjur.svc.cluster.local" > follower.conjur.svc.cluster.local-openssl.cnf
 ```
-- Generate certificate of the Conjur Follower certificate
+- Generate **certificate** of the Conjur Follower certificate
 ```console
 openssl x509 -req -in follower.conjur.svc.cluster.local.csr -CA ConjurDemoCA.pem -CAkey ConjurDemoCA.key -CAcreateserial -days 365 -sha256 -out follower.conjur.svc.cluster.local.pem -extfile follower.conjur.svc.cluster.local-openssl.cnf
 ```
