@@ -33,7 +33,7 @@ Generating RSA private key, 2048 bit long modulus (2 primes)
 e is 65537 (0x010001)
 ```
 - Generate certificate of the self-signed certificate authority
-> Note: change the common name of the certificate according to your environment
+- **Note**: change the common name of the certificate according to your environment
 ```console
 [root@conjur ~]# openssl req -x509 -new -nodes -key vxLabCA.key -days 365 -sha256 -out vxLabCA.pem
 You are about to be asked to enter information that will be incorporated
@@ -108,6 +108,7 @@ openssl x509 -req -in conjur.vx.csr -CA vxLabCA.pem -CAkey vxLabCA.key -CAcreate
 > For follower deployment in Kubernetes, the name will be the Kubernetes service FQDN in the form of `<service-name>.<namespace>.svc.cluster.local`
 > 
 > Conjur OSS does not support followers
+
 - Generate private key of the Conjur Follower certificate
 ```console
 openssl genrsa -out follower.conjur.svc.cluster.local.key 2048
