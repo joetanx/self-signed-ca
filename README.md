@@ -19,109 +19,160 @@ This guide is applicable for both Conjur Open Source Suite (OSS) and Enterprise 
 | Role | Common Name | Subject Alternative Name |
 | --- | --- | --- |
 | Certificate Authority | vx Lab Certificate Authority | |
-| Conjur Server | conjur.vx | conjur.vx |
-| Conjur Follower | follower.conjur.svc.cluster.local | follower.conjur.svc.cluster.local |
+| Conjur Server | conjur.vx | conjur.vx, cj1.vx, cj2.vx, cj3.vx |
+| Conjur Follower | follower.vx | follower.vx, flr1.vx, flr2.vx, follower.conjur.svc.cluster.local |
 
-## 1.0 Generate a self-signed certificate authority
-### 1.1 Method 1: Generate key first, then CSR, then certificate
-- Generate private key of the self-signed certificate authority
+## 1. Generate a self-signed certificate authority
+### 1.1 Generate private key
+- RSA
 ```console
-[root@conjur ~]# openssl genrsa -out vxLabCA.key 2048
-Generating RSA private key, 2048 bit long modulus (2 primes)
-...........................................................................+++++
-.......................................+++++
-e is 65537 (0x010001)
+openssl genrsa -out vxLabCA.key 3072
 ```
-- Generate certificate of the self-signed certificate authority
-- **Note**: change the common name of the certificate according to your environment
+- ECDSA
 ```console
-[root@conjur ~]# openssl req -x509 -new -nodes -key vxLabCA.key -days 365 -sha256 -out vxLabCA.pem
-You are about to be asked to enter information that will be incorporated
-into your certificate request.
-What you are about to enter is what is called a Distinguished Name or a DN.
-There are quite a few fields but you can leave some blank
-For some fields there will be a default value,
-If you enter '.', the field will be left blank.
------
-Country Name (2 letter code) [XX]:.
-State or Province Name (full name) []:
-Locality Name (eg, city) [Default City]:.
-Organization Name (eg, company) [Default Company Ltd]:.
-Organizational Unit Name (eg, section) []:
-Common Name (eg, your name or your server's hostname) []:vx Lab Certificate Authority
-Email Address []:
+openssl ecparam -name secp384r1 -genkey -out vxLabCA.key
 ```
 
-### 1.2 Method 2: Generate key and certificate in a single command
+### 1.2 Prepare openssl config
+> **Note**:
+> - Change the common name of the certificate according to your environment
+> - There is a sample openssl config file at `/etc/pki/tls/openssl.cnf` that you can refer to for more details
+
 ```console
-[root@conjur ~]# openssl req -newkey rsa:2048 -days "365" -nodes -x509 -keyout vxLabCA.key -out vxLabCA.pem
-Generating a RSA private key
-...............................................+++++
-.........+++++
-writing new private key to 'vxLabCA.key'
------
-You are about to be asked to enter information that will be incorporated
-into your certificate request.
-What you are about to enter is what is called a Distinguished Name or a DN.
-There are quite a few fields but you can leave some blank
-For some fields there will be a default value,
-If you enter '.', the field will be left blank.
------
-Country Name (2 letter code) [XX]:.
-State or Province Name (full name) []:
-Locality Name (eg, city) [Default City]:.
-Organization Name (eg, company) [Default Company Ltd]:.
-Organizational Unit Name (eg, section) []:
-Common Name (eg, your name or your server's hostname) []:vx Lab Certificate Authority
-Email Address []:
+cat << EOF >> vxLabCA.cnf
+[ req ]
+prompt = no
+distinguished_name = req_distinguished_name
+[ req_distinguished_name ]
+commonName = vx Lab Certificate Authority
+EOF
 ```
 
-## 2.0 Generate certificate for Conjur Server
-> **Note**: change the common name/subject alternative name of the certificate according to your environment
-> 
-> The name must match the Conjur Server FQDN that the clients or followers will be using to communicate to the Conjur Server
-> 
-> If your Conjur Enterprise deployment includes master/standby setup, you need to include the FQDNs of the load balancer, master server, and standby servers in the certificate SAN
+### 1.3 Generate certificate
+```console
+openssl req -x509 -new -nodes -sha256 -days 365 -key vxLabCA.key -config vxLabCA.cnf -out vxLabCA.pem
+```
 
-- Generate **private key** of the Conjur Server certificate
+## 2. Generate certificate for Conjur Server
+> **Note**:
+> - Change the common name/subject alternative name of the certificate according to your environment
+> - The name must match the Conjur Server FQDN that the clients or followers will be using to communicate to the Conjur leader or cluster
+> - If your Conjur Enterprise deployment includes master/standby setup, you need to include the FQDNs of the load balancer, master server, and standby servers in the certificate SAN
+
+### 2.1 Generate private key
+- **Note**: Conjur currently supports only RSA keys
 ```console
 openssl genrsa -out conjur.vx.key 2048
 ```
-- Create **certificate signing request** for the Conjur Master certificate
+
+### 2.2 Prepare openssl config
+> **Note**:
+> - Change the common name of the certificate according to your environment
+> - There is a sample openssl config file at `/etc/pki/tls/openssl.cnf` that you can refer to for more details
+
 ```console
-openssl req -new -key conjur.vx.key -subj "/CN=conjur.vx" -out conjur.vx.csr
-```
-- Create OpenSSL **configuration file** to add subject alternative name
-```console
-echo "subjectAltName=DNS:conjur.vx" > conjur.vx-openssl.cnf
-```
-- Generate **certificate** of the Conjur Master certificate
-```console
-openssl x509 -req -in conjur.vx.csr -CA vxLabCA.pem -CAkey vxLabCA.key -CAcreateserial -days 365 -sha256 -out conjur.vx.pem -extfile conjur.vx-openssl.cnf
+cat << EOF >> conjur.vx.cnf
+[ req ]
+prompt = no
+distinguished_name = req_distinguished_name
+req_extensions = req_ext
+[ req_distinguished_name ]
+commonName = conjur.vx
+[ req_ext ]
+subjectAltName = @alt_names
+[ alt_names ]
+DNS.1 = conjur.vx
+DNS.2 = cjr1.vx
+DNS.3 = cjr2.vx
+DNS.4 = cjr3.vx
+EOF
 ```
 
-## 3.0 Generate certificate for Conjur Follower
-> **Note**: change the common name/subject alternative name of the certificate according to your environment
-> 
-> The name must match the follower FQDN that the follower will be using to communicate to the Conjur Master
-> 
-> For follower deployment in Kubernetes, the name will be the Kubernetes service FQDN in the form of `<service-name>.<namespace>.svc.cluster.local`
-> 
-> Conjur OSS does not support followers
+> Note: `subjectAltName = DNS:conjur.vx, DNS:cjr1.vx, DNS:cjr2.vx, DNS:cjr3.vx` will also work for the subject alternative names
 
-- Generate **private key** of the Conjur Follower certificate
+### 2.3 Create certificate signing request
 ```console
-openssl genrsa -out follower.conjur.svc.cluster.local.key 2048
+openssl req -new -config conjur.vx.cnf -key conjur.vx.key -out conjur.vx.csr
 ```
-- Create **certificate signing request** for the Conjur Follower certificate
+
+### 2.4 Generate certificate
 ```console
-openssl req -new -key follower.conjur.svc.cluster.local.key -subj "/CN=follower.conjur.svc.cluster.local" -out follower.conjur.svc.cluster.local.csr
+openssl x509 -req -sha256 -days 365 -CA vxLabCA.pem -CAkey vxLabCA.key -CAcreateserial -in conjur.vx.csr -extfile conjur.vx.cnf -extensions req_ext -out conjur.vx.pem
 ```
-- Create OpenSSL **configuration file** to add subject alternative name
+
+## 3. Generate certificate for Conjur Server
+> **Note**:
+> - Change the common name/subject alternative name of the certificate according to your environment
+> - The name must match the follower FQDN that the follower will be using to communicate to the Conjur leader or cluster
+> - Include the FQDN for all follower nodes in the subject alternative name
+> - For follower deployment in Kubernetes, the name will be the Kubernetes service FQDN in the form of `<service-name>.<namespace>.svc.cluster.local`
+> - Conjur OSS does not support followers
+
+### 3.1 Generate private key
+- **Note**: Conjur currently supports only RSA keys
 ```console
-echo "subjectAltName=DNS:follower.conjur.demo,DNS:follower.conjur.svc.cluster.local" > follower.conjur.svc.cluster.local-openssl.cnf
+openssl genrsa -out follower.vx.key 2048
 ```
-- Generate **certificate** of the Conjur Follower certificate
+
+### 3.2 Prepare openssl config
+> **Note**:
+> - Change the common name of the certificate according to your environment
+> - There is a sample openssl config file at `/etc/pki/tls/openssl.cnf` that you can refer to for more details
+
 ```console
-openssl x509 -req -in follower.conjur.svc.cluster.local.csr -CA ConjurDemoCA.pem -CAkey ConjurDemoCA.key -CAcreateserial -days 365 -sha256 -out follower.conjur.svc.cluster.local.pem -extfile follower.conjur.svc.cluster.local-openssl.cnf
+cat << EOF >> follower.vx.cnf
+[ req ]
+prompt = no
+distinguished_name = req_distinguished_name
+req_extensions = req_ext
+[ req_distinguished_name ]
+commonName = follower.vx
+[ req_ext ]
+subjectAltName = @alt_names
+[ alt_names ]
+DNS.1 = follower.vx
+DNS.2 = flr1.vx
+DNS.3 = flr2.vx
+DNS.4 = follower.conjur.svc.cluster.local
+EOF
+```
+
+> Note: `subjectAltName = DNS:follower.vx, DNS:flr1.vx, DNS:flr2.vx, DNS: follower.conjur.svc.cluster.local` will also work for the subject alternative names
+
+### 3.3 Create certificate signing request
+```console
+openssl req -new -config follower.vx.cnf -key follower.vx.key -out follower.vx.csr
+```
+
+### 3.4 Generate certificate
+```console
+openssl x509 -req -sha256 -days 365 -CA vxLabCA.pem -CAkey vxLabCA.key -CAcreateserial -in follower.vx.csr -extfile follower.vx.cnf -extensions req_ext -out follower.vx.pem
+```
+
+## 4. Certificate checking commands
+
+### 4.1 Check certificate
+```console
+openssl x509 -text -noout -in cert.pem
+```
+
+### 4.2 Check private key
+- RSA key
+```console
+openssl rsa -check -in cert.key
+```
+
+- EC key
+```console
+openssl ec -check -in cert.key
+```
+
+### 4.3 Check certificate signing request (CSR)
+```console
+openssl req -text -noout -verify -in cert.csr
+```
+
+### 4.4 Check PKCS#12 file (.pfx or .p12)
+```console
+openssl pkcs12 -info -in cert.pfx
 ```
